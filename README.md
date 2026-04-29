@@ -1,5 +1,7 @@
 # The Ripple Effect: How the US-Iran Conflict Reshaped Global Markets
 
+**Live app:** [ripple-effect.streamlit.app](https://ripple-effect.streamlit.app/)
+
 ## Core Question
 
 **When a geopolitical conflict occurs, how does the shock radiate from the epicenter outward — across commodities, regions, sectors, and individual companies?**
