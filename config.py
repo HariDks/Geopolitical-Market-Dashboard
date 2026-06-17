@@ -9,14 +9,24 @@ from datetime import datetime, timedelta
 
 # --- Dates ---
 CONFLICT_START = datetime(2026, 2, 28)
+CEASEFIRE_DATE = datetime(2026, 4, 8)   # First formal ceasefire (resolution anchor)
+RELAPSE_DATE = datetime(2026, 5, 7)     # US strikes resume — ceasefire breaks down
 
-# Key escalation milestones
+# Key milestones (verified chronology of the 2026 Iran war)
 MILESTONES = [
-    (datetime(2026, 2, 28), "Conflict Escalation", "US-Israel/Iran military tensions spike"),
-    (datetime(2026, 3, 3), "Oil Supply Fears", "Strait of Hormuz shipping threat emerges"),
+    (datetime(2026, 2, 28), "War Onset", "US/Israel airstrikes on Iran; Strait of Hormuz closed"),
     (datetime(2026, 3, 7), "Sanctions Expanded", "New sanctions on Iranian oil exports"),
-    (datetime(2026, 3, 12), "Market Selloff", "Global indices drop on escalation fears"),
     (datetime(2026, 3, 17), "Diplomatic Talks", "Initial de-escalation signals emerge"),
+    (datetime(2026, 4, 8), "Ceasefire", "First formal ceasefire, mediated by Pakistan"),
+    (datetime(2026, 5, 7), "Strikes Resume", "Ceasefire breaks down; war re-escalates"),
+    (datetime(2026, 6, 14), "Peace MoU", "Memorandum of understanding announced (signing Jun 19)"),
+]
+
+# Phases for the event-study analysis (label, event date, type)
+PHASES = [
+    ("Onset", CONFLICT_START, "shock"),
+    ("Ceasefire", CEASEFIRE_DATE, "resolution"),
+    ("Relapse", RELAPSE_DATE, "shock"),
 ]
 
 # --- Ticker Groups ---
@@ -60,6 +70,30 @@ SAFETY = {
     "Gold (GLD)": "GLD",
     "US Treasuries (TLT)": "TLT",
     "US Dollar (UUP)": "UUP",
+}
+
+# --- Statistical analysis config ---
+MARKET_FACTOR = ("Global Equities (ACWI)", "ACWI")  # market-model benchmark
+
+# Placebo assets: ~zero plausible war exposure (guardrail — CARs should be null)
+PLACEBOS = {
+    "Utilities (XLU)": "XLU",
+    "Consumer Staples (XLP)": "XLP",
+    "US REITs (VNQ)": "VNQ",
+    "Small-Cap US (IWM)": "IWM",
+}
+
+# Ex-ante exposure scores (-2 hurt by war ... +2 benefits). Assigned a priori.
+EXPOSURE_SCORES = {
+    "Crude Oil WTI": 2, "Brent Crude": 2, "Natural Gas": 1,
+    "US (S&P 500)": 0, "Europe (VGK)": -1, "Saudi Arabia (KSA)": 2,
+    "Turkey (TUR)": -1, "Emerging Markets (EEM)": -1, "Japan (EWJ)": 0, "China (FXI)": 0,
+    "Energy (XLE)": 2, "Defense (ITA)": 2, "Airlines (JETS)": -2,
+    "Tech (XLK)": 0, "Financials (XLF)": 0, "Healthcare (XLV)": 0, "Consumer Disc. (XLY)": -1,
+    "Lockheed Martin": 2, "RTX (Raytheon)": 2, "ExxonMobil": 2, "Chevron": 2,
+    "Delta Airlines": -2, "United Airlines": -2,
+    "Gold (GLD)": 2, "US Treasuries (TLT)": -1, "US Dollar (UUP)": 1,
+    # VIX excluded — it's a vol index, not a return series
 }
 
 # --- Colors ---
@@ -129,6 +163,10 @@ def fetch_group(tickers_tuple, start, end):
         return pd.DataFrame()
     combined = pd.concat(frames.values(), axis=1)
     combined.index = pd.to_datetime(combined.index)
+    # Defensive: yfinance can return a duplicate timestamp (partial "today" bar) or a
+    # duplicate column, which makes df[col] a frame and breaks scalar formatting downstream.
+    combined = combined.loc[~combined.index.duplicated(keep="last")]
+    combined = combined.loc[:, ~combined.columns.duplicated()]
     return combined
 
 
