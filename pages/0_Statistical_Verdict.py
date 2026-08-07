@@ -109,16 +109,18 @@ for col, e in zip(cols, EPISODES):
         )
         pk = peaks[k]
         m = st.columns(3)
-        m[0].metric("Peak pattern strength", _strength(pk[1] if pk else None),
+        m[0].metric("Peak strength", _strength(pk[1] if pk else None),
                     delta=f"at day {pk[0]}" if pk else None, delta_color="off",
                     help=f"Strongest rank correlation between predicted exposure and actual move: "
                          f"{pk[1]:+.2f}, reached {pk[0]} trading days in." if pk else "")
         n_sig = sum(1 for v in plac[k].values() if abs(v[1]) > 1.96)
-        m[1].metric("Placebo check", f"{len(plac[k]) - n_sig}/{len(plac[k])} clean"
+        # "clean" lives in the label, not the value — these sit three-to-a-half-width
+        # column, so the value has to stay short.
+        m[1].metric("Placebos clean", f"{len(plac[k]) - n_sig}/{len(plac[k])}"
                     + (" ✓" if n_sig <= 1 else " ⚠️"),
                     help="Markets with no war exposure should show no abnormal move.")
         jump = rdit_jump(rets["Crude Oil WTI"], e["shock"]) if "Crude Oil WTI" in rets.columns else None
-        m[2].metric("Oil's instant jump", f"{jump[0]:+.1f}%" if jump else "—",
+        m[2].metric("Oil day-1 jump", f"{jump[0]:+.1f}%" if jump else "—",
                     help="Regression discontinuity: oil's jump on the day itself.")
         st.caption(f"{tot} trading days elapsed · {clean} before de-escalation")
 

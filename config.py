@@ -165,9 +165,41 @@ def init_date_range():
         st.session_state.end_dt = today
 
 
+def inject_css():
+    """Stop st.metric values from ellipsising.
+
+    Streamlit renders the metric value at a fixed ~2.25rem and clips it to the column.
+    In an 8-across row that leaves room for about six characters, so "+8.45%" survived
+    while "+23.66%" became "+23.…". Scale the value with the viewport and let it show
+    in full; wrap long labels rather than truncating them too.
+    """
+    st.markdown(
+        """
+        <style>
+        [data-testid="stMetricValue"] {
+            font-size: clamp(1.0rem, 1.9vw, 1.9rem);
+            line-height: 1.3;
+        }
+        [data-testid="stMetricValue"] > div {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: nowrap;
+        }
+        [data-testid="stMetricLabel"] p {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_sidebar():
     """Render the shared sidebar with date controls and milestone list."""
     init_date_range()
+    inject_css()
     today = datetime.now()
 
     st.sidebar.markdown("# The Ripple Effect")

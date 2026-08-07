@@ -96,8 +96,9 @@ summary = {
 cols = st.columns(len(summary))
 for i, (label, chg) in enumerate(summary.items()):
     with cols[i]:
+        # One decimal: this row is 8 metrics wide, so every character counts.
         if chg is not None:
-            st.metric(label, f"{chg:+.2f}%", delta_color="normal")
+            st.metric(label, f"{chg:+.1f}%", delta_color="normal")
         else:
             st.metric(label, "N/A")
 
