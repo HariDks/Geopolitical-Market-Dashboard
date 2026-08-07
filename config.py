@@ -341,6 +341,40 @@ def color_val(val):
     return f"color: {COLOR_UP}; font-weight: 600" if val >= 0 else f"color: {COLOR_DOWN}; font-weight: 600"
 
 
+# Tooltips for the metric columns every ring shares.
+METRIC_HELP = {
+    "3-Day": "Change over the 3 trading days after the conflict began.",
+    "7-Day": "Change over the 7 trading days after the conflict began.",
+    "Total": "Change across the whole selected window.",
+    "Max Gain": "Largest trough-to-peak rise inside the window.",
+    "Drawdown": "Largest peak-to-trough fall inside the window.",
+    "Volatility": "Annualised volatility of daily returns.",
+}
+
+
+def render_metric_table(df, label_col, plain_cols=("Volatility",), label_width="medium"):
+    """Render a ring's metric table so values never truncate to '…'.
+
+    Columns are sized explicitly and headers kept short — the long ones
+    ("Volatility (ann.)") were forcing every value column narrow enough to ellipsis.
+    Signed % columns keep the green/red tint; `plain_cols` render unsigned.
+    """
+    signed = [c for c in df.columns if c != label_col and c not in plain_cols]
+    fmt = {c: "{:+.2f}%" for c in signed}
+    fmt.update({c: "{:.1f}%" for c in plain_cols if c in df.columns})
+
+    cfg = {label_col: st.column_config.TextColumn(label_col, width=label_width)}
+    for c in df.columns:
+        if c == label_col:
+            continue
+        cfg[c] = st.column_config.Column(c, width="small", help=METRIC_HELP.get(c))
+
+    st.dataframe(
+        df.style.format(fmt, na_rep="N/A").map(color_val, subset=signed),
+        width="stretch", hide_index=True, column_config=cfg,
+    )
+
+
 # --- Dynamic Commentary Engine ---
 
 def _move_phrase(chg):

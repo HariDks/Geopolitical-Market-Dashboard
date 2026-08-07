@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from config import (
+    render_metric_table,
     render_sidebar, load_data, normalize_to_start, total_change,
     find_conflict_td, pct_change_period, max_drawdown, max_gain, volatility,
     make_chart, add_milestones, color_val, generate_commentary,
@@ -239,19 +240,12 @@ for name in COMPANIES:
             "7-Day": chg_7,
             "Total": total_change(s),
             "Max Gain": max_gain(s),
-            "Max Drawdown": max_drawdown(s),
+            "Drawdown": max_drawdown(s),
             "Volatility": volatility(s),
         })
 
 if metrics:
-    mdf = pd.DataFrame(metrics)
-    fmt = {c: "{:+.2f}%" for c in mdf.columns if c != "Company"}
-    fmt["Volatility"] = "{:.1f}%"
-    st.dataframe(
-        mdf.style.format(fmt, na_rep="N/A")
-        .map(color_val, subset=["3-Day", "7-Day", "Total", "Max Gain", "Max Drawdown"]),
-        width="stretch", hide_index=True,
-    )
+    render_metric_table(pd.DataFrame(metrics), "Company")
 
 st.divider()
 st.caption("Ring 4 — Real companies, real money, real impact.")

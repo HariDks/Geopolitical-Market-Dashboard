@@ -14,7 +14,7 @@ import streamlit as st
 
 from config import (
     render_sidebar, EXPOSURE_SCORES, PLACEBOS, MARKET_FACTOR,
-    CONFLICT_START, EPISODES, EPISODE_BY_KEY, episode_colors,
+    CONFLICT_START, PHASES, EPISODES, EPISODE_BY_KEY, episode_colors,
 )
 from stats import (
     prepare, dose_response, baseline_volatility,
@@ -244,16 +244,29 @@ for a in SPEED_ASSETS:
         continue
     rows.append({
         "Market": a,
-        "R1 peak %": round(p1["peak"], 1), "R1 day of peak": p1["peak_td"],
-        "R2 peak %": round(p2["peak"], 1), "R2 day of peak": p2["peak_td"],
-        "R1 kept at de-escalation": f"{p1['retained_pct']:.0f}%" if p1["retained_pct"] is not None else "—",
-        "R2 kept at de-escalation": f"{p2['retained_pct']:.0f}%" if p2["retained_pct"] is not None else "—",
+        f"{R1['short']} peak": p1["peak"], f"{R1['short']} day": p1["peak_td"],
+        f"{R1['short']} kept": p1["retained_pct"],
+        f"{R2['short']} peak": p2["peak"], f"{R2['short']} day": p2["peak_td"],
+        f"{R2['short']} kept": p2["retained_pct"],
     })
 if rows:
-    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-    st.caption("Peak = largest cumulative abnormal move inside the clean window. "
-               "'Kept' = share of that peak still standing on the last session before de-escalation news — "
-               "so it measures the market unwinding by itself, not reacting to peace.")
+    speed_cfg = {"Market": st.column_config.TextColumn("Market", width="medium")}
+    for e in (R1, R2):
+        s = e["short"]
+        speed_cfg[f"{s} peak"] = st.column_config.NumberColumn(
+            f"{s} peak", format="%+.1f%%", width="small",
+            help=f"Largest cumulative abnormal move after the {s} shock.")
+        speed_cfg[f"{s} day"] = st.column_config.NumberColumn(
+            f"{s} day", format="%d", width="small",
+            help="Trading day that peak was reached.")
+        speed_cfg[f"{s} kept"] = st.column_config.NumberColumn(
+            f"{s} kept", format="%.0f%%", width="small",
+            help="Share of the peak still standing on the last session before de-escalation news.")
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, column_config=speed_cfg)
+    st.caption("**Peak** = largest cumulative abnormal move inside the clean window · "
+               "**day** = trading day it was reached · "
+               "**kept** = share of that peak still standing on the last session before de-escalation "
+               "news, so it measures the market unwinding by itself rather than reacting to peace.")
 
 oil_p1, oil_p2 = prof["R1"].get("Crude Oil WTI"), prof["R2"].get("Crude Oil WTI")
 if oil_p1 and oil_p2:
@@ -418,23 +431,41 @@ with st.expander("🔬 Full results — every market, both rounds, with signific
             # int/str column fails Arrow serialisation.
             "Market": n,
             "Predicted": f"{EXPOSURE_SCORES[n]:+d}" if n in EXPOSURE_SCORES else "—",
-            f"{R1['short']} move %": round(a[0], 2) if a else None,
+            f"{R1['short']} move": a[0] if a else None,
             f"{R1['short']} sig": _stars(a[1]) if a else "—",
-            f"{R2['short']} move %": round(b[0], 2) if b else None,
+            f"{R2['short']} move": b[0] if b else None,
             f"{R2['short']} sig": _stars(b[1]) if b else "—",
         })
-    rws.sort(key=lambda r: (r[f"{R2['short']} move %"] is None, -(r[f"{R2['short']} move %"] or 0)))
-    st.dataframe(pd.DataFrame(rws), width="stretch", hide_index=True)
+    rws.sort(key=lambda r: (r[f"{R2['short']} move"] is None, -(r[f"{R2['short']} move"] or 0)))
+    full_cfg = {
+        "Market": st.column_config.TextColumn("Market", width="medium"),
+        "Predicted": st.column_config.TextColumn(
+            "Predicted", width="small", help="Ex-ante exposure score, −2 (hurt) … +2 (benefits)."),
+    }
+    for e in (R1, R2):
+        s = e["short"]
+        full_cfg[f"{s} move"] = st.column_config.NumberColumn(
+            f"{s} move", format="%+.2f%%", width="small",
+            help=f"Abnormal move over {HORIZON} trading days from the {s} shock.")
+        full_cfg[f"{s} sig"] = st.column_config.TextColumn(
+            f"{s} sig", width="small", help="★ p<0.10 · ★★ p<0.05 · ★★★ p<0.01")
+    st.dataframe(pd.DataFrame(rws), width="stretch", hide_index=True, column_config=full_cfg)
     st.caption(f"★ p<0.10 · ★★ p<0.05 · ★★★ p<0.01. Move vs. the ACWI market-model baseline over "
                f"{HORIZON} trading days from each shock.")
 
 with st.expander("🛡️ Placebo detail"):
+    plac_cfg = {
+        "Market": st.column_config.TextColumn("Market", width="medium"),
+        "Abnormal move": st.column_config.NumberColumn("Abnormal move", format="%+.2f%%", width="small"),
+        "t-stat": st.column_config.NumberColumn("t-stat", format="%+.2f", width="small"),
+        "Significant?": st.column_config.TextColumn("Significant?", width="small"),
+    }
     for e in EPISODES:
         st.markdown(f"**{e['label']}**")
         st.dataframe(pd.DataFrame([
-            {"Placebo market": n, "Abnormal move %": round(c, 2), "t-stat": round(t, 2),
-             "Significant?": _stars(t)} for n, (c, t, k) in plac[e["key"]].items()
-        ]), width="stretch", hide_index=True)
+            {"Market": n, "Abnormal move": c, "t-stat": t, "Significant?": _stars(t)}
+            for n, (c, t, k) in plac[e["key"]].items()
+        ]), width="stretch", hide_index=True, column_config=plac_cfg)
 
 with st.expander("📊 Phase-by-phase — the whole war, not just the shocks"):
     prows, labels = phase_table(rets, mkt, models, asset_names, today)
@@ -445,10 +476,15 @@ with st.expander("📊 Phase-by-phase — the whole war, not just the shocks"):
 
     big = sorted(prows, key=_amp, reverse=True)
     df_ph = pd.DataFrame([
-        {"Market": r["asset"], **{l: (round(r[l], 1) if r[l] is not None else None) for l in labels}}
-        for r in big[:18]
+        {"Market": r["asset"], **{l: r[l] for l in labels}} for r in big[:18]
     ])
-    st.dataframe(df_ph, width="stretch", hide_index=True)
+    ph_cfg = {"Market": st.column_config.TextColumn("Market", width="medium")}
+    for i, l in enumerate(labels):
+        when = PHASES[i][1]
+        ph_cfg[l] = st.column_config.NumberColumn(
+            l, format="%+.1f%%", width="small",
+            help=f"Abnormal move from {when:%b %d} to the next phase.")
+    st.dataframe(df_ph, width="stretch", hide_index=True, column_config=ph_cfg)
     st.caption("Abnormal move within each phase. This replaces the old three-bucket split, which lumped "
                "everything after May 7 together and so blended the June peace MoU with the July restart.")
 
@@ -460,11 +496,23 @@ with st.expander("📉 Reversion — what each de-escalation undid"):
             continue
         st.markdown(f"**{e['label']} → {e['deescalation_label']}**")
         st.dataframe(pd.DataFrame([{
-            "Market": r["asset"], "War move %": round(r["war"], 1),
-            "After de-escalation %": round(r["peace"], 1) if r["peace"] is not None else None,
-            "% of war undone": round(r["pct_reversed"]) if r["pct_reversed"] is not None else None,
-            "Half-life (days)": r["half_life"],
-        } for r in big]), width="stretch", hide_index=True)
+            "Market": r["asset"], "War move": r["war"], "After": r["peace"],
+            "Undone": r["pct_reversed"], "Half-life": r["half_life"],
+        } for r in big]), width="stretch", hide_index=True, column_config={
+            "Market": st.column_config.TextColumn("Market", width="medium"),
+            "War move": st.column_config.NumberColumn(
+                "War move", format="%+.1f%%", width="small",
+                help="Abnormal move from the shock to its de-escalation."),
+            "After": st.column_config.NumberColumn(
+                "After", format="%+.1f%%", width="small",
+                help="Abnormal move after the de-escalation, until the next shock."),
+            "Undone": st.column_config.NumberColumn(
+                "Undone", format="%.0f%%", width="small",
+                help="Share of the war move the de-escalation reversed."),
+            "Half-life": st.column_config.NumberColumn(
+                "Half-life", format="%d d", width="small",
+                help="Trading days to revert halfway back to baseline."),
+        })
 
 with st.expander("📐 Methodology & honest caveats"):
     st.markdown(

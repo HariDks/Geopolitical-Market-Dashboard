@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from config import (
+    render_metric_table,
     render_sidebar, load_data, normalize_to_start, total_change,
     find_conflict_td, pct_change_period, max_drawdown, max_gain, volatility,
     make_chart, add_milestones, color_val, generate_commentary,
@@ -154,22 +155,15 @@ for name in EPICENTER:
         chg_7 = pct_change_period(s, conflict_td, 7) if conflict_td else None
         metrics.append({
             "Commodity": name,
-            "Total Change %": total_change(s),
-            "7-Day Change %": chg_7,
-            "Max Gain %": max_gain(s),
-            "Max Drawdown %": max_drawdown(s),
-            "Volatility (ann.)": volatility(s),
+            "7-Day": chg_7,
+            "Total": total_change(s),
+            "Max Gain": max_gain(s),
+            "Drawdown": max_drawdown(s),
+            "Volatility": volatility(s),
         })
 
 if metrics:
-    mdf = pd.DataFrame(metrics)
-    fmt = {c: "{:+.2f}%" for c in mdf.columns if c != "Commodity"}
-    fmt["Volatility (ann.)"] = "{:.1f}%"
-    st.dataframe(
-        mdf.style.format(fmt, na_rep="N/A")
-        .map(color_val, subset=[c for c in mdf.columns if "Change" in c or "Gain" in c or "Drawdown" in c]),
-        width="stretch", hide_index=True,
-    )
+    render_metric_table(pd.DataFrame(metrics), "Commodity")
 
 st.divider()
 st.caption("Ring 1 — The epicenter where the ripple begins.")
