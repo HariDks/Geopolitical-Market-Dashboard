@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 CONFLICT_START = datetime(2026, 2, 28)
 CEASEFIRE_DATE = datetime(2026, 4, 8)   # First formal ceasefire (resolution anchor)
 RELAPSE_DATE = datetime(2026, 5, 7)     # US strikes resume — ceasefire breaks down
+MOU_DATE = datetime(2026, 6, 14)        # Peace MoU announced — resolution that held ~3 weeks
+RESTART_DATE = datetime(2026, 7, 7)     # War restarts in earnest — the Round 2 shock anchor
+OMAN_TALKS = datetime(2026, 8, 4)       # Omani-mediated negotiations reopen
 
 # Key milestones (verified chronology of the 2026 Iran war)
 MILESTONES = [
@@ -20,6 +23,9 @@ MILESTONES = [
     (datetime(2026, 4, 8), "Ceasefire", "First formal ceasefire, mediated by Pakistan"),
     (datetime(2026, 5, 7), "Strikes Resume", "Ceasefire breaks down; war re-escalates"),
     (datetime(2026, 6, 14), "Peace MoU", "Memorandum of understanding announced (signing Jun 19)"),
+    (datetime(2026, 7, 7), "War Restarts", "US strikes resume on 80+ targets; sanctions and naval blockade reimposed"),
+    (datetime(2026, 7, 13), "MoU Declared Over", "Trump: the memorandum is 'over'; Iran strikes two tankers"),
+    (datetime(2026, 8, 4), "Oman Talks", "Omani-mediated negotiations reopen"),
 ]
 
 # Phases for the event-study analysis (label, event date, type)
@@ -27,7 +33,53 @@ PHASES = [
     ("Onset", CONFLICT_START, "shock"),
     ("Ceasefire", CEASEFIRE_DATE, "resolution"),
     ("Relapse", RELAPSE_DATE, "shock"),
+    ("Peace MoU", MOU_DATE, "resolution"),
+    ("Restart", RESTART_DATE, "shock"),
+    ("Oman Talks", OMAN_TALKS, "resolution"),
 ]
+
+# --- Episodes: the two comparable full-scale shocks ---
+# Each episode pairs a shock with the de-escalation news that ended its clean window.
+# `deescalation` matters for the analysis: abnormal moves after that date mix genuine
+# decay with the market repricing the peace headline, so comparisons censor there.
+EPISODES = [
+    {
+        "key": "R1",
+        "label": "Round 1 — Onset",
+        "short": "Feb 28",
+        "shock": CONFLICT_START,
+        "deescalation": CEASEFIRE_DATE,
+        "deescalation_label": "Ceasefire (Apr 8)",
+        "blurb": "US/Israel airstrikes; Strait of Hormuz closed.",
+    },
+    {
+        "key": "R2",
+        "label": "Round 2 — Restart",
+        "short": "Jul 7",
+        "shock": RESTART_DATE,
+        "deescalation": OMAN_TALKS,
+        "deescalation_label": "Oman talks (Aug 4)",
+        "blurb": "Strikes resume on 80+ targets; blockade and sanctions reimposed.",
+    },
+]
+
+EPISODE_BY_KEY = {e["key"]: e for e in EPISODES}
+
+# Episode identity is a *categorical* encoding, so it can't reuse the win/lose
+# green/red (those stay reserved for the sign of a move). Blue/orange, stepped per
+# theme; both pairs pass CVD separation, chroma and contrast on their own surface.
+EPISODE_COLORS_LIGHT = {"R1": "#2a78d6", "R2": "#eb6834"}
+EPISODE_COLORS_DARK = {"R1": "#3987e5", "R2": "#d95926"}
+
+
+def episode_colors():
+    """Episode hues stepped for the viewer's active theme."""
+    try:
+        if st.context.theme.type == "dark":
+            return EPISODE_COLORS_DARK
+    except Exception:
+        pass
+    return EPISODE_COLORS_LIGHT
 
 # --- Ticker Groups ---
 EPICENTER = {

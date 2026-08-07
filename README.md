@@ -8,9 +8,10 @@
 
 ## The Concept
 
-This dashboard visualizes market impact as **concentric rings** radiating from the epicenter of the US-Iran conflict (February 28, 2026). Each ring represents a layer further from the direct impact zone.
+This dashboard visualizes market impact as **concentric rings** radiating from the epicenter of the US-Iran conflict (February 28, 2026). Each ring represents a layer further from the direct impact zone. Ring 0 sits underneath the whole thing, testing whether the war caused the moves at all.
 
 ```
+Ring 0 — Statistical Verdict (was it actually the war?)
 Ring 1 — Oil & Energy (Epicenter)
   Ring 2 — Regional Markets (Contagion)
     Ring 3 — Sector Winners & Losers
@@ -18,10 +19,51 @@ Ring 1 — Oil & Energy (Epicenter)
         Ring 5 — Fear & Safety Gauges
 ```
 
+## Chronology
+
+The war has run in two full-scale rounds, each ended by a de-escalation. Ring 0 treats
+these as two separate natural experiments and compares them.
+
+| Date | Event |
+|------|-------|
+| Feb 28, 2026 | **War onset** — US/Israel airstrikes; Strait of Hormuz closed |
+| Mar 7 | Sanctions expanded on Iranian oil exports |
+| Mar 17 | Initial de-escalation signals |
+| Apr 8 | **Ceasefire** — first formal ceasefire, mediated by Pakistan |
+| May 7 | Strikes resume; ceasefire breaks down |
+| Jun 14 | **Peace MoU** announced (signing Jun 19) |
+| Jul 7 | **War restarts** — US strikes on 80+ targets; sanctions and naval blockade reimposed |
+| Jul 13 | Trump declares the MoU "over"; Iran strikes two tankers |
+| Aug 4 | **Oman talks** — Omani-mediated negotiations reopen |
+
+The two comparable shocks are the **Feb 28 onset (Round 1)** and the **Jul 7 restart (Round 2)**.
+
 ## What the Dashboard Shows
 
 ### At a Glance
 Top-level scoreboard showing total % change for 8 key indicators since the conflict started.
+
+### Ring 0 — The Statistical Verdict
+Asks whether the war actually *caused* the moves, and whether the second war looked like the first.
+
+- **Market-model event study** — `return = α + β·ACWI + ε` fit on the pre-war window; the
+  "abnormal move" is what happened minus what that baseline predicted
+- **The dose-response staircase** — markets sorted by an ex-ante exposure score (−2…+2)
+  assigned *before* looking at the data. If the war drove things, actual moves should climb
+  with predicted exposure. Scored by rank correlation
+- **Round 1 vs Round 2 side by side** — both staircases, both decay curves, and oil's
+  abnormal path overlaid on a shared day-one axis
+- **Placebo guardrail** — utilities, staples, REITs, small-caps should show nothing
+- **RDiT jump test** — a second, independent method measuring the instant jump at each shock
+- **Phase table** — abnormal move within every phase of the war, so the June peace and the
+  July restart never get averaged together
+
+Two methodological rules make the cross-round comparison honest:
+
+- **Trading-day alignment.** Feb 28 was a Saturday, Jul 7 a Tuesday — equal *calendar*
+  windows buy unequal numbers of observations. Everything counts sessions instead.
+- **Censoring at de-escalation.** Decay is measured only up to the last session before each
+  round's peace news, so "markets moved on" and "markets read a headline" stay separable.
 
 ### Ring 1 — The Epicenter: Oil & Energy
 - Crude Oil (WTI), Brent Crude, Natural Gas
