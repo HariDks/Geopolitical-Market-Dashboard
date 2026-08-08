@@ -228,8 +228,11 @@ st.divider()
 st.markdown("## Did markets process the restart faster?")
 st.markdown(
     "Two different questions hide inside 'faster'. **On impact**, no — the July reaction was slower off the "
-    "line and roughly half the size. **Over the full arc**, yes — it peaked in half the time and then markets "
-    "handed most of it back *on their own*, with the war still going and before any peace headline."
+    "line and roughly half the size (crude runs at 35–80% of Round 1 at every horizon tested). "
+    "**Over the full arc**, yes — it peaked in half the time and then markets handed back **about half** of "
+    "it *on their own*, with the war still going and before any peace headline. "
+    "One channel genuinely was quicker in July: energy **equities** tracked crude from day one, where in "
+    "February XLE, Exxon and Chevron all sat flat-to-negative through the first week while futures spiked."
 )
 
 SPEED_ASSETS = ["Crude Oil WTI", "Brent Crude", "Energy (XLE)", "Airlines (JETS)", "Defense (ITA)"]
@@ -330,14 +333,11 @@ st.divider()
 # =====================================================================
 st.markdown("## What changed between the two wars")
 st.markdown(
-    "February was priced as *the world is dangerous*. July was priced as *barrels are tight for a few weeks*. "
-    "Splitting the universe into the channels a war is supposed to travel through shows where the second "
-    "reaction simply didn't go — the difference sits in **VIX and defense**, not in gold."
-)
-st.caption(
-    "Read the fear/safety bars carefully: this channel is negative in **both** rounds, so it isn't a "
-    "February-vs-July contrast. Gold peaked on Jan 29 — a month *before* the war — and has fallen through "
-    "the whole conflict, so it never behaved like a safe haven in either round."
+    "Splitting the universe into the channels a war is supposed to travel through shows which parts of the "
+    "second reaction went missing. **This picture depends on when you look** — use the toggle. Defense and "
+    "the demand hit *reverse* between the first week and the fourth, so neither supports a stable "
+    "February-vs-July story. What survives at both horizons is **crude** (Round 2 is roughly half the size "
+    "throughout) and **VIX** (below)."
 )
 
 LEGS = {
@@ -346,21 +346,26 @@ LEGS = {
     "Defense": ["Defense (ITA)", "Lockheed Martin", "RTX (Raytheon)"],
     "Demand hit": ["Airlines (JETS)", "Delta Airlines", "United Airlines"],
 }
+leg_td = st.radio(
+    "Measured over", [7, HORIZON],
+    format_func=lambda t: f"First week ({t} trading days)" if t == 7 else f"Full comparable window ({t} days)",
+    index=1, horizontal=True, key="leg_horizon",
+)
+leg_cars = {e["key"]: car_table_td(rets, mkt, models, asset_names, e["shock"], leg_td) for e in EPISODES}
+
 leg_rows = []
 for leg, members in LEGS.items():
-    vals = {}
+    row = {"Channel": leg}
     for e in EPISODES:
-        got = [cars[e["key"]][m][0] for m in members if m in cars[e["key"]]]
-        vals[e["key"]] = float(np.mean(got)) if got else None
-    leg_rows.append({"Channel": leg,
-                     f"{R1['short']} avg %": round(vals["R1"], 2) if vals["R1"] is not None else None,
-                     f"{R2['short']} avg %": round(vals["R2"], 2) if vals["R2"] is not None else None})
+        got = [leg_cars[e["key"]][m][0] for m in members if m in leg_cars[e["key"]]]
+        row[e["short"]] = float(np.mean(got)) if got else None
+    leg_rows.append(row)
 
 figl = go.Figure()
 for e in EPISODES:
     k = e["key"]
     figl.add_trace(go.Bar(
-        x=[r["Channel"] for r in leg_rows], y=[r[f"{e['short']} avg %"] for r in leg_rows],
+        x=[r["Channel"] for r in leg_rows], y=[r[e["short"]] for r in leg_rows],
         name=f"{e['label']} ({e['short']})",
         marker=dict(color=EPC[k], line=dict(color="rgba(255,255,255,0.85)", width=2)),
         hovertemplate="%{x}<br>" + e["short"] + ": %{y:+.2f}%<extra></extra>",
@@ -368,11 +373,20 @@ for e in EPISODES:
 figl.add_hline(y=0, line_color=NEU, line_width=1)
 figl.update_layout(
     height=340, bargap=0.35, bargroupgap=0.08,
-    yaxis_title=f"Average abnormal move, {HORIZON} trading days (%)",
+    yaxis_title=f"Average abnormal move, {leg_td} trading days (%)",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     margin=dict(t=40, b=40, l=60, r=20), hovermode="x unified",
 )
 st.plotly_chart(figl, width="stretch")
+
+st.caption(
+    "**Two channels flip when you change the window.** Defense averages +0.7% (Feb) vs −5.4% (Jul) over the "
+    "first week, but −5.9% vs +1.4% over twenty days — the opposite ranking. The demand hit is −6.6% vs "
+    "−6.3% at one week and +5.5% vs −0.4% at twenty. Read either as a Feb-vs-Jul verdict and you get "
+    "whichever answer the window hands you, so this page does not make that claim. "
+    "**Fear/safety is negative in both rounds at both horizons** — it is not a contrast at all: gold peaked "
+    "on Jan 29, a month *before* the war, and has fallen throughout."
+)
 
 # VIX belongs in levels, not CAR — it's a volatility index, not a return series.
 if "VIX" in rets.columns:
