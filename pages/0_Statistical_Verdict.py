@@ -134,7 +134,8 @@ st.markdown(
     "Each market is placed by **what we predicted before the war** — expected losers on the left, "
     "expected winners on the right. Bar height = **what actually happened**. If the war drove things, "
     "the bars should climb left-to-right. Compare the two rounds: the ordering returns in July, but "
-    "the bars are **shorter**, and the safe-haven names on the right no longer play along."
+    "the bars are **shorter**. Note the far right — gold sits there on a predicted score of +2 and is "
+    "**negative in both rounds**, so it works against the pattern rather than for it."
 )
 
 # Order by predicted exposure, then by Round 1's actual move within ties.
@@ -331,7 +332,12 @@ st.markdown("## What changed between the two wars")
 st.markdown(
     "February was priced as *the world is dangerous*. July was priced as *barrels are tight for a few weeks*. "
     "Splitting the universe into the channels a war is supposed to travel through shows where the second "
-    "reaction simply didn't go."
+    "reaction simply didn't go — the difference sits in **VIX and defense**, not in gold."
+)
+st.caption(
+    "Read the fear/safety bars carefully: this channel is negative in **both** rounds, so it isn't a "
+    "February-vs-July contrast. Gold peaked on Jan 29 — a month *before* the war — and has fallen through "
+    "the whole conflict, so it never behaved like a safe haven in either round."
 )
 
 LEGS = {
@@ -540,11 +546,15 @@ with st.expander("📐 Methodology & honest caveats"):
   exposure), **null placebos**, and a **second method** (instant jumps at surprise events).
 - **Fit measure.** Exposure is an *ordinal* −2…+2 score, so we report **rank correlation**. Linear R²
   is lower mainly because oil is a huge linear outlier — directionally on-trend, far beyond a straight line.
+- **Two exposure scores look wrong for this war.** **Gold** is scored +2 but is negative in *both* rounds —
+  it topped out on Jan 29, a month before the first shot, and has declined through the entire conflict, so
+  it never acted as a safe haven here. **Natural Gas** is scored +1 but its July move looks like
+  storage/weather rather than war. Both sit on the winners' side and so drag the staircase down in both
+  rounds — meaning the measured pattern is, if anything, *understated*. They are deliberately left at their
+  a priori values: rescoring them after seeing the data is exactly the thing this design exists to prevent.
 - **Known limits.** Single-factor model whose betas are fit ~10 months before the July shock and may have
-  drifted; commodities fit the baseline poorly; Natural Gas is scored +1 but its July move looks like
-  storage/weather, not war, and drags the Round 2 staircase; VIX is excluded from the staircase
-  (it's a vol index, not a return) and reported in levels instead; exposure scores are judgmental and set
-  *a priori*.
+  drifted; commodities fit the baseline poorly; VIX is excluded from the staircase (it's a vol index, not a
+  return) and reported in levels instead; exposure scores are judgmental and set *a priori*.
 """
     )
 
