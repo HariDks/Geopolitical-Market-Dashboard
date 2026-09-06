@@ -19,7 +19,7 @@ from config import (
 from stats import (
     prepare, dose_response, baseline_volatility,
     rdit_jump, reversion_table, phase_table, ALL_ASSETS,
-    car_table_td, staircase_curve_td, abnormal_path_td,
+    car_td, car_table_td, staircase_curve_td, abnormal_path_td,
     episode_profile, episode_trading_days, comparable_horizon,
 )
 
@@ -78,15 +78,93 @@ def _strength(rho):
 
 
 # =====================================================================
+# NARRATIVE FACTS — computed, never typed.
+#
+# Every claim this page makes in prose is derived here from the current data. The
+# page is live: it reruns against whatever the market has done since, so a sentence
+# with a number or a direction written into it goes stale silently. Anything a
+# sentence asserts must come out of this block.
+# =====================================================================
+def _fmt_pp(v, digits=1):
+    return "—" if v is None else f"{v:+.{digits}f}%"
+
+
+def _leg_mean(members, episode, ntd):
+    got = [car_td(rets, mkt, models, m, episode["shock"], ntd) for m in members]
+    got = [g[0] for g in got if g]
+    return float(np.mean(got)) if got else None
+
+
+DEFENSE_NAMES = ["Defense (ITA)", "Lockheed Martin", "RTX (Raytheon)"]
+DEMAND_NAMES = ["Airlines (JETS)", "Delta Airlines", "United Airlines"]
+
+facts = {}
+for key, members in (("defense", DEFENSE_NAMES), ("demand", DEMAND_NAMES)):
+    for ntd, tag in ((7, "wk1"), (HORIZON, "full")):
+        for e in EPISODES:
+            facts[f"{key}_{tag}_{e['key']}"] = _leg_mean(members, e, ntd)
+
+# Does a channel rank the two rounds the same way at both horizons? If not, the page
+# must not use it as a Round-1-vs-Round-2 contrast.
+def _flips(key):
+    a = facts.get(f"{key}_wk1_R1"), facts.get(f"{key}_wk1_R2")
+    b = facts.get(f"{key}_full_R1"), facts.get(f"{key}_full_R2")
+    if None in a or None in b:
+        return False
+    return (a[0] > a[1]) != (b[0] > b[1])
+
+
+facts["defense_flips"] = _flips("defense")
+facts["demand_flips"] = _flips("demand")
+
+# Crude's size ratio across every horizon, so "roughly half" is stated as a real range.
+_ratios = []
+for a in ("Crude Oil WTI", "Brent Crude"):
+    for td in (3, 5, 7, 10, 13, HORIZON):
+        x = car_td(rets, mkt, models, a, R1["shock"], td)
+        y = car_td(rets, mkt, models, a, R2["shock"], td)
+        if x and y and abs(x[0]) > 1:
+            _ratios.append(y[0] / x[0] * 100)
+facts["crude_ratio_lo"] = min(_ratios) if _ratios else None
+facts["crude_ratio_hi"] = max(_ratios) if _ratios else None
+
+# Where each round's oil move stands NOW, including everything after de-escalation.
+# This is the part most likely to have moved since the page was written.
+oil_now = {}
+for e in EPISODES:
+    path = abnormal_path_td(rets, mkt, models, "Crude Oil WTI", e["shock"])
+    prof = episode_profile(rets, mkt, models, "Crude Oil WTI", e)
+    if path is None or prof is None or not len(path):
+        continue
+    after_peak = path[path.idxmax():] if prof["peak"] > 0 else path[path.idxmin():]
+    oil_now[e["key"]] = {
+        "peak": prof["peak"], "kept": prof["retained_pct"],
+        "latest": float(path.iloc[-1]),
+        "trough_after_peak": float(after_peak.min() if prof["peak"] > 0 else after_peak.max()),
+        "pct_of_peak_now": float(path.iloc[-1] / prof["peak"] * 100) if prof["peak"] else None,
+        "td_elapsed": len(path),
+        "as_of": path.index[-1],
+    }
+
+
+# =====================================================================
 # 1. VERDICT BANNER
 # =====================================================================
 both_real = all(p and p[1] >= 0.4 and p[2] > 0 for p in peaks.values())
+_j1 = rdit_jump(rets["Crude Oil WTI"], R1["shock"]) if "Crude Oil WTI" in rets.columns else None
+_j2 = rdit_jump(rets["Crude Oil WTI"], R2["shock"]) if "Crude Oil WTI" in rets.columns else None
+_smaller = (_j1 and _j2 and abs(_j2[0]) < abs(_j1[0]))
+_o1, _o2 = oil_now.get("R1", {}), oil_now.get("R2", {})
+_undone_faster = (_o1.get("kept") is not None and _o2.get("kept") is not None
+                  and _o2["kept"] < _o1["kept"])
+_traits = [t for t, ok in (("smaller on impact", _smaller),
+                           ("undone faster before any peace news", _undone_faster)) if ok]
 if both_real:
     st.success(
-        f"### ✓ The data says: it was the war — both times\n"
-        f"The markets we predicted would react **did, in the right order**, after the February onset "
-        f"*and* after the July restart. Unrelated 'placebo' markets stayed quiet in both. "
-        f"But the second reaction was **smaller, calmer, and undone faster** — see below."
+        "### ✓ The data says: it was the war — both times\n"
+        "The markets we predicted would react **did, in the right order**, after the February onset "
+        "*and* after the July restart. Unrelated 'placebo' markets stayed quiet in both."
+        + (f" But the second reaction was **{'** and **'.join(_traits)}** — see below." if _traits else "")
     )
 else:
     st.warning("### ~ The evidence is mixed\nThe war's fingerprint is uneven across the two shocks — read on.")
@@ -188,12 +266,20 @@ st.divider()
 # 3. HOW LONG DID THE PATTERN LAST?
 # =====================================================================
 st.markdown("## How long did the pattern last?")
-st.markdown(
-    "Widen the window a day at a time and re-measure. In **Round 1** the signal spiked in the first week "
-    "and was gone inside three — the finding that the war's impact 'lasted about two weeks'. "
-    "**Round 2 inverted that shape**: it started weaker but kept *building*, because a single clean driver "
-    "(physical crude) sorted the cross-section better than February's diffuse panic did."
-)
+_pk1, _pk2 = peaks.get("R1"), peaks.get("R2")
+if _pk1 and _pk2:
+    _inverted = _pk2[0] > _pk1[0]
+    st.markdown(
+        f"Widen the window a day at a time and re-measure. **Round 1** was strongest at day **{_pk1[0]}** "
+        f"(rank correlation {_pk1[1]:+.2f}) and decayed from there — the finding that the war's impact "
+        f"'lasted about two weeks'. **Round 2** was strongest at day **{_pk2[0]}** ({_pk2[1]:+.2f}). "
+        + (f"**Round 2 inverted the shape**: it started weaker but kept *building*, because a single clean "
+           f"driver (physical crude) sorts a cross-section more slowly than February's diffuse panic, but "
+           f"more durably." if _inverted else
+           "Both rounds peaked early and faded, so the second shock repeated the first one's shape.")
+    )
+else:
+    st.markdown("Widen the window a day at a time and re-measure to see how long each round's pattern held.")
 
 figc = go.Figure()
 for e in EPISODES:
@@ -226,13 +312,21 @@ st.divider()
 # 4. DID MARKETS PROCESS IT FASTER? — the speed comparison
 # =====================================================================
 st.markdown("## Did markets process the restart faster?")
+_r2_kept = oil_now.get("R2", {}).get("kept")
+_gave_back = (100 - _r2_kept) if _r2_kept is not None else None
+_ratio_txt = (f"crude runs at {facts['crude_ratio_lo']:.0f}–{facts['crude_ratio_hi']:.0f}% of Round 1 "
+              f"across every horizon tested"
+              if facts.get("crude_ratio_lo") is not None else "crude ran materially smaller")
 st.markdown(
-    "Two different questions hide inside 'faster'. **On impact**, no — the July reaction was slower off the "
-    "line and roughly half the size (crude runs at 35–80% of Round 1 at every horizon tested). "
-    "**Over the full arc**, yes — it peaked in half the time and then markets handed back **about half** of "
-    "it *on their own*, with the war still going and before any peace headline. "
-    "One channel genuinely was quicker in July: energy **equities** tracked crude from day one, where in "
-    "February XLE, Exxon and Chevron all sat flat-to-negative through the first week while futures spiked."
+    f"Two different questions hide inside 'faster'. **On impact**, no — the July reaction was slower off "
+    f"the line and materially smaller ({_ratio_txt}). "
+    f"**Over the full arc**, yes — it peaked sooner, and markets then handed back "
+    f"**{_gave_back:.0f}%** of it *on their own*, with the war still going and before any peace headline. "
+    f"One channel genuinely was quicker in July: energy **equities** tracked crude from day one, where in "
+    f"February XLE, Exxon and Chevron all sat flat-to-negative through the first week while futures spiked."
+    if _gave_back is not None else
+    "Two different questions hide inside 'faster': how hard markets reacted on impact, and how the whole "
+    "arc played out. The table below separates them."
 )
 
 SPEED_ASSETS = ["Crude Oil WTI", "Brent Crude", "Energy (XLE)", "Airlines (JETS)", "Defense (ITA)"]
@@ -329,15 +423,72 @@ st.caption("Solid = clean window before that round's de-escalation news. Dotted 
 st.divider()
 
 # =====================================================================
+# 4b. WHERE IT STANDS NOW
+#
+# The giveback figures above are censored at each round's de-escalation, so they are
+# frozen and stay correct. What is NOT frozen is what oil has done since. This page
+# is live; without this section its narrative would quietly describe a market state
+# that has moved on. Everything here is computed, so it cannot go stale.
+# =====================================================================
+st.markdown("## Where it stands now")
+if _o2:
+    _as_of = _o2["as_of"]
+    _pct_now = _o2["pct_of_peak_now"]
+    _trough_pct = _o2["trough_after_peak"] / _o2["peak"] * 100 if _o2["peak"] else None
+    _rebuilt = _pct_now is not None and _trough_pct is not None and _pct_now > _trough_pct + 15
+
+    c = st.columns(4)
+    c[0].metric("Round 2 peak", f"{_o2['peak']:+.1f}%", help="Largest abnormal move after the Jul 7 restart.")
+    c[1].metric("Low since peak", f"{_o2['trough_after_peak']:+.1f}%",
+                help="How far the abnormal move fell back after peaking.")
+    c[2].metric("Today", f"{_o2['latest']:+.1f}%",
+                delta=f"{_pct_now:.0f}% of peak" if _pct_now is not None else None, delta_color="off",
+                help=f"Oil's abnormal move as of {_as_of:%b %d, %Y}.")
+    c[3].metric("Sessions since Jul 7", f"{_o2['td_elapsed']}")
+
+    if _rebuilt:
+        st.warning(
+            f"**The giveback did not stick.** Oil's abnormal move peaked at **{_o2['peak']:+.1f}%**, fell "
+            f"back to **{_o2['trough_after_peak']:+.1f}%** (about {_trough_pct:.0f}% of the peak), and has "
+            f"since rebuilt to **{_o2['latest']:+.1f}%** — roughly **{_pct_now:.0f}%** of the Round 2 peak "
+            f"as of {_as_of:%b %d, %Y}.\n\n"
+            f"The '{100 - _o2['kept']:.0f}% handed back on their own' figure above is measured up to the "
+            f"Oman talks and remains correct for that window. But read across the whole period, markets did "
+            f"not simply stop believing in the disruption — they stopped, and then started again. Any claim "
+            f"that the second shock was *permanently* discounted is not supported by the current data."
+        )
+    else:
+        st.info(
+            f"As of **{_as_of:%b %d, %Y}**, oil's abnormal move since the July restart stands at "
+            f"**{_o2['latest']:+.1f}%**"
+            + (f", about **{_pct_now:.0f}%** of its Round 2 peak." if _pct_now is not None else ".")
+            + " The giveback measured before the Oman talks has broadly held."
+        )
+    st.caption("This section recomputes on every page load, so it always describes the current state "
+               "rather than the state when the analysis was written.")
+
+st.divider()
+
+# =====================================================================
 # 5. WHAT CHANGED — the three legs
 # =====================================================================
 st.markdown("## What changed between the two wars")
+_flippers = [n for k, n in (("defense", "defense"), ("demand", "the demand hit")) if facts.get(f"{k}_flips")]
+_flip_sentence = (
+    f"{' and '.join(_flippers).capitalize()} *reverse* between the first week and the "
+    f"{HORIZON}-day window, so neither supports a stable February-vs-July story. "
+    if _flippers else ""
+)
+_crude_sentence = (
+    f"What survives at both horizons is **crude** (Round 2 runs at "
+    f"{facts['crude_ratio_lo']:.0f}–{facts['crude_ratio_hi']:.0f}% of Round 1 throughout) and **VIX** (below)."
+    if facts.get("crude_ratio_lo") is not None else
+    "What survives at both horizons is **crude** and **VIX** (below)."
+)
 st.markdown(
     "Splitting the universe into the channels a war is supposed to travel through shows which parts of the "
-    "second reaction went missing. **This picture depends on when you look** — use the toggle. Defense and "
-    "the demand hit *reverse* between the first week and the fourth, so neither supports a stable "
-    "February-vs-July story. What survives at both horizons is **crude** (Round 2 is roughly half the size "
-    "throughout) and **VIX** (below)."
+    "second reaction went missing. **This picture depends on when you look** — use the toggle. "
+    + _flip_sentence + _crude_sentence
 )
 
 LEGS = {
@@ -379,14 +530,27 @@ figl.update_layout(
 )
 st.plotly_chart(figl, width="stretch")
 
-st.caption(
-    "**Two channels flip when you change the window.** Defense averages +0.7% (Feb) vs −5.4% (Jul) over the "
-    "first week, but −5.9% vs +1.4% over twenty days — the opposite ranking. The demand hit is −6.6% vs "
-    "−6.3% at one week and +5.5% vs −0.4% at twenty. Read either as a Feb-vs-Jul verdict and you get "
-    "whichever answer the window hands you, so this page does not make that claim. "
-    "**Fear/safety is negative in both rounds at both horizons** — it is not a contrast at all: gold peaked "
-    "on Jan 29, a month *before* the war, and has fallen throughout."
-)
+# Which channels reverse their Round 1 vs Round 2 ranking between the two horizons is a
+# property of the current data, so the warning is assembled from it rather than typed.
+_flip_bits = []
+for _k, _lbl in (("defense", "**Defense**"), ("demand", "**The demand hit**")):
+    if not facts.get(f"{_k}_flips"):
+        continue
+    _flip_bits.append(
+        f"{_lbl} averages {_fmt_pp(facts[f'{_k}_wk1_R1'])} ({R1['short']}) vs "
+        f"{_fmt_pp(facts[f'{_k}_wk1_R2'])} ({R2['short']}) over the first week, but "
+        f"{_fmt_pp(facts[f'{_k}_full_R1'])} vs {_fmt_pp(facts[f'{_k}_full_R2'])} over "
+        f"{HORIZON} days — the opposite ranking"
+    )
+_gold_note = ("**Fear/safety is negative in both rounds** — not a contrast at all: gold peaked on "
+              "Jan 29, a month *before* the war, and has fallen throughout.")
+if _flip_bits:
+    st.caption("**Some channels flip when you change the window.** " + ". ".join(_flip_bits) + ". "
+               "Read either as a Feb-vs-Jul verdict and you get whichever answer the window hands you, "
+               "so this page does not make that claim. " + _gold_note)
+else:
+    st.caption("Checked at both horizons, no channel reverses its Round 1 vs Round 2 ranking on current "
+               "data. " + _gold_note)
 
 # VIX belongs in levels, not CAR — it's a volatility index, not a return series.
 if "VIX" in rets.columns:
@@ -517,9 +681,21 @@ with st.expander("📉 Reversion — what each de-escalation undid"):
         if not big:
             continue
         st.markdown(f"**{e['label']} → {e['deescalation_label']}**")
+
+        def _reversed_label(p):
+            # A negative "% undone" means the move kept going the same way after the
+            # de-escalation rather than unwinding — "-259% undone" is not a readable
+            # way to say that, so name the behaviour instead of printing the ratio.
+            if p is None:
+                return "—"
+            if p < 0:
+                return "extended further"
+            return f"{min(p, 999):.0f}%"
+
         st.dataframe(pd.DataFrame([{
             "Market": r["asset"], "War move": r["war"], "After": r["peace"],
-            "Undone": r["pct_reversed"], "Half-life": r["half_life"],
+            "Reversed": _reversed_label(r["pct_reversed"]),
+            "Half-life": f"{r['half_life']} d" if r["half_life"] is not None else "not reached",
         } for r in big]), width="stretch", hide_index=True, column_config={
             "Market": st.column_config.TextColumn("Market", width="medium"),
             "War move": st.column_config.NumberColumn(
@@ -528,12 +704,14 @@ with st.expander("📉 Reversion — what each de-escalation undid"):
             "After": st.column_config.NumberColumn(
                 "After", format="%+.1f%%", width="small",
                 help="Abnormal move after the de-escalation, until the next shock."),
-            "Undone": st.column_config.NumberColumn(
-                "Undone", format="%.0f%%", width="small",
-                help="Share of the war move the de-escalation reversed."),
-            "Half-life": st.column_config.NumberColumn(
-                "Half-life", format="%d d", width="small",
-                help="Trading days to revert halfway back to baseline."),
+            "Reversed": st.column_config.TextColumn(
+                "Reversed", width="small",
+                help="Share of the war move the de-escalation undid. 'Extended further' means the "
+                     "move continued in the same direction instead of unwinding."),
+            "Half-life": st.column_config.TextColumn(
+                "Half-life", width="small",
+                help="Trading days to revert halfway to baseline. 'Not reached' means it never got "
+                     "halfway back before the next shock."),
         })
 
 with st.expander("📐 Methodology & honest caveats"):

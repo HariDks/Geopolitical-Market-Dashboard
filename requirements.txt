@@ -1,5 +1,9 @@
-streamlit
-yfinance
-plotly
-pandas
-statsmodels
+# Pinned to minor versions. Streamlit Cloud reinstalls on every rebuild, so an
+# unpinned yfinance (which tracks a scraped, frequently-changing upstream) can take
+# the live app down without any change to this repo.
+streamlit~=1.52
+yfinance~=1.2
+plotly~=6.6
+pandas~=2.3
+statsmodels~=0.14
+numpy~=2.1

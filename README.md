@@ -93,7 +93,10 @@ Two methodological rules make the cross-round comparison honest:
 ### The Full Story
 Step-by-step propagation narrative with actual data — how the shock traveled from oil to regions to sectors to safe havens.
 
-## Assets Tracked (28 total)
+## Assets Tracked
+
+**27 tracked assets** across the five rings, plus a market benchmark and four placebo
+controls — **32 price series in total**.
 
 | Ring | Assets | Tickers |
 |------|--------|---------|
@@ -102,6 +105,8 @@ Step-by-step propagation narrative with actual data — how the shock traveled f
 | Sectors | Energy, Defense, Airlines, Tech, Financials, Healthcare, Consumer | XLE, ITA, JETS, XLK, XLF, XLV, XLY |
 | Companies | Lockheed, RTX, Exxon, Chevron, Delta, United | LMT, RTX, XOM, CVX, DAL, UAL |
 | Safety | VIX, Gold, Treasuries, Dollar | ^VIX, GLD, TLT, UUP |
+| *Benchmark* | *Global equities (market model factor)* | *ACWI* |
+| *Placebo controls* | *Utilities, Staples, REITs, Small-cap — should show no war effect* | *XLU, XLP, VNQ, IWM* |
 
 ## Features
 
